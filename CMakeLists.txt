@@ -44,4 +44,4 @@ add_executable(bow3d
 
 target_link_libraries(bow3d ${catkin_LIBRARIES} ${CERES_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES} ${G2O_LIBS} ${Sophus_LIBRARIES})
 
-
+add_subdirectory(expr)
