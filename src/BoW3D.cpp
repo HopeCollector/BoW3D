@@ -93,7 +93,7 @@ namespace BoW3D
     }
        
 
-    void BoW3D::retrieve(Frame* pCurrentFrame, int &loopFrameId, Eigen::Matrix3d &loopRelR, Eigen::Vector3d &loopRelt)
+    std::vector<LoopResult> BoW3D::retrieve(Frame* pCurrentFrame, int &loopFrameId, Eigen::Matrix3d &loopRelR, Eigen::Vector3d &loopRelt)
     {        
         int frameId = pCurrentFrame->mnId;
 
@@ -240,9 +240,11 @@ namespace BoW3D
 
         if(mScoreFrameID.size() == 0)
         {
-            return;
+            return {};
         }
 
+        std::vector<LoopResult> ret;
+        ret.reserve(mScoreFrameID.size());
         for(auto it = mScoreFrameID.rbegin(); it != mScoreFrameID.rend(); it++)
         {          
             int loopId = (*it).second;
@@ -264,10 +266,20 @@ namespace BoW3D
                 loopFrameId = (*it).second;
                 loopRelR = loopRelativeR;
                 loopRelt = loopRelativet;                         
-                
-                return;
             }     
+            if(returnValue != -1) 
+            {
+                ret.emplace_back();
+                auto& res = ret.back();
+                res.key_frame_id = frameId;
+                res.loop_frame_id = (*it).second;
+                res.loop_rel_R = loopRelativeR;
+                res.loop_rel_t = loopRelativet;
+                res.score = returnValue;
+            }
         } 
+        ret.shrink_to_fit();
+        return ret;
     }
 
 
