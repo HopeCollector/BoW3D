@@ -57,7 +57,7 @@ int main(int argc, char** argv)
 
     /*Please replace the dataset folder path with the path in your computer. KITTI's 00, 02, 05, 06, 07, 08 have loops*/
     string dataset_folder;
-    dataset_folder = "/home/cuiyunge/dataset/velodyne/"; //The last '/' should be added 
+    dataset_folder = "/ws/data/kitti/sequences/00/velodyne/"; //The last '/' should be added 
 
 
     BoW3D::LinK3D_Extractor* pLinK3dExtractor = new BoW3D::LinK3D_Extractor(nScans, scanPeriod, minimumRange, distanceTh, matchTh); 
