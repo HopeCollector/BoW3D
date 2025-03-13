@@ -66,11 +66,11 @@ Config load_config(const std::string& config_path) {
       node["num_add_retrieve_features"].get_value<int>();
 
   // Parameters of dataset
-  ret.dataset_type = node["dataset_type"].get_value<std::string>();
-  ret.lidar_path = node["lidar_path"].get_value<std::string>();
-  ret.pose_path = node["pose_path"].get_value<std::string>();
-  ret.calib_path = node["calib_path"].get_value<std::string>();
-  ret.output_path = node["output_path"].get_value<std::string>();
+  ret.dataset_type = node["dataset"].get_value<std::string>();
+  ret.lidar_path = node["lidar"].get_value<std::string>();
+  ret.pose_path = node["pose"].get_value<std::string>();
+  ret.calib_path = node["calib"].get_value<std::string>();
+  ret.output_path = node["output"].get_value<std::string>();
   return ret;
 }
 
