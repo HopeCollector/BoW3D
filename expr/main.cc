@@ -6,6 +6,7 @@
 #include <CLI/CLI.hpp>
 #include <fkYAML/node.hpp>
 #include <fstream>
+#include <thread>
 
 #include "BoW3D.h"
 #include "LinK3D_Extractor.h"
@@ -120,6 +121,18 @@ double iou(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cld1,
                  std::count(marks2.begin(), marks2.end(), true);
   return double(inter) / double(cld1->size() + cld2->size());
 }
+
+struct TimeCounter {
+  std::chrono::high_resolution_clock::time_point start;
+
+  TimeCounter() : start(std::chrono::high_resolution_clock::now()) {}
+  double duration() {
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+               .count() /
+           1000.0;
+  }
+};
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -142,72 +155,60 @@ int main(int argc, char** argv) {
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr cur_cld;
   std::deque<Result> results;
-  size_t frame_num = loader->size();
-  while (true) {
-    auto tmp = loader->next();
-    if (tmp) {
-      cur_cld.reset(new pcl::PointCloud<pcl::PointXYZ>);
-      cur_cld->resize(tmp->size());
-      std::transform(
-          tmp->begin(), tmp->end(), cur_cld->begin(),
-          [](const auto& p) { return pcl::PointXYZ(p.x, p.y, p.z); });
-    } else {
-      break;
-    }
+  std::vector<utils::CloudT::Ptr> clouds;
+  clouds.reserve(loader->size());
+  fmt::print(
+      "#key_id,point_num,loop_id,score,iou,desc-ms,query-ms,update-ms\n");
+  for (size_t i = 0; i < loader->size(); i++) {
+    auto tmp = loader->seq(i, true);
+    clouds.push_back(tmp);
+    Eigen::Vector4f center;
+    pcl::compute3DCentroid(*tmp, center);
+    cur_cld.reset(new pcl::PointCloud<pcl::PointXYZ>);
+    cur_cld->resize(tmp->size());
+    std::transform(tmp->begin(), tmp->end(), cur_cld->begin(),
+                   [](const auto& p) { return pcl::PointXYZ(p.x, p.y, p.z); });
+    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+    transform.translation() = center.head<3>();
+    pcl::transformPointCloud(*cur_cld, *cur_cld, transform.inverse());
+    fmt::print("{},{},{},", i, tmp->size(), cur_cld->size());
 
-    // do the BoW3D things
-    auto t1 = std::chrono::high_resolution_clock::now();
+    TimeCounter tc_desc;
     auto pCurrentFrame = new BoW3D::Frame(pLinK3dExtractor, cur_cld);
-    auto t2 = std::chrono::high_resolution_clock::now();
-    auto t_desc = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1)
-                      .count() /
-                  1000.0;
-    size_t frameId = pCurrentFrame->mnId;
-    if (pCurrentFrame->mnId < 2) {
+    auto t_desc_ms = tc_desc.duration();
+    if (i > 2) {
+      int loopFrameId = -1;
+      Eigen::Matrix3d loopRelR;
+      Eigen::Vector3d loopRelt;
+      TimeCounter tc_query;
+      auto bow3d_res =
+          pBoW3D->retrieve(pCurrentFrame, loopFrameId, loopRelR, loopRelt);
+      auto t_query_ms = tc_query.duration();
+      if (bow3d_res.loop_frame_id != -1) {
+        auto cld1 = clouds[i];
+        auto cld2 = clouds[bow3d_res.loop_frame_id];
+        Result res;
+        res.key_frame_id = i;
+        res.loop_frame_id = bow3d_res.loop_frame_id;
+        res.score = 1.0 / (bow3d_res.loop_rel_t.norm() + 1.0);
+        res.iou = iou(cld1, cld2);
+        res.t_desc = t_desc_ms;
+        res.t_query = t_query_ms;
+        fmt::print("{},{},{},", i, res.score, res.iou);
+      } else {
+        fmt::print("-1,-1,-1,");
+      }
+    }
+
+    if (pCurrentFrame) {
+      TimeCounter tc_update;
       pBoW3D->update(pCurrentFrame);
-      continue;
-    }
-    int loopFrameId = -1;
-    Eigen::Matrix3d loopRelR;
-    Eigen::Vector3d loopRelt;
-    auto t3 = std::chrono::high_resolution_clock::now();
-    auto pairs =
-        pBoW3D->retrieve(pCurrentFrame, loopFrameId, loopRelR, loopRelt);
-    pBoW3D->update(pCurrentFrame);
-    auto t4 = std::chrono::high_resolution_clock::now();
-    auto t_query = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3)
-                       .count() /
-                   1000.0;
-
-    // record the result
-    for (const auto& par : pairs) {
-      Result res;
-      res.key_frame_id = frameId;
-      res.loop_frame_id = par.loop_frame_id;
-      res.score = 1.0 / (par.loop_rel_t.norm() + 1.0);
-      auto cld1 = loader->seq(res.key_frame_id, true);
-      auto cld2 = loader->seq(res.loop_frame_id, true);
-      res.iou = iou(cld1, cld2);
-      res.t_desc = t_desc;
-      res.t_query = t_query;
-      // calculate the center
-      Eigen::Vector4f center1;
-      pcl::compute3DCentroid(*cld1, center1);
-      Eigen::Vector4f center2;
-      pcl::compute3DCentroid(*cld2, center2);
-      res.center = ((center1 * cld1->size() + center2 * cld2->size()) /
-                    (cld1->size() + cld2->size()))
-                       .block<3, 1>(0, 0);
-      results.push_back(res);
-    }
-
-    // print progress
-    fmt::print("Processing({}/{}): ", frameId, frame_num);
-    if (loopFrameId != -1) {
-      fmt::print("{}, {}, {:.2f}\n", frameId, loopFrameId, loopRelt.norm());
+      auto t_update_ms = tc_update.duration();
+      fmt::print("{}\n", t_update_ms);
     } else {
-      fmt::print("no loop found\n");
+      fmt::print("-1\n");
     }
+    std::cout << std::flush;
   }
 
   // save the results
