@@ -62,11 +62,11 @@ namespace BoW3D
     };
 
     struct LoopResult {
-        int key_frame_id;
-        int loop_frame_id;
-        Eigen::Matrix3d loop_rel_R;
-        Eigen::Vector3d loop_rel_t;
-        double score;
+        int key_frame_id{0};
+        int loop_frame_id{-1};
+        Eigen::Matrix3d loop_rel_R = Eigen::Matrix3d::Identity();
+        Eigen::Vector3d loop_rel_t{100., 100., 100.};
+        double score{-1.};
     };
    
     class BoW3D: public unordered_map<pair<float, int>, unordered_set<pair<int, int>, pair_hash>, pair_hash>  //Dimension value, Dimension ID; Frame ID, Descriptor ID
@@ -80,7 +80,7 @@ namespace BoW3D
 
             int loopCorrection(Frame* currentFrame, Frame* matchedFrame, vector<pair<int, int>> &vMatchedIndex, Eigen::Matrix3d &R, Eigen::Vector3d &t);
 
-            std::vector<LoopResult> retrieve(Frame* pCurrentFrame, int &loopFrameId, Eigen::Matrix3d &loopRelR, Eigen::Vector3d &loopRelt);           
+            LoopResult retrieve(Frame* pCurrentFrame, int &loopFrameId, Eigen::Matrix3d &loopRelR, Eigen::Vector3d &loopRelt);           
 
         private:
             LinK3D_Extractor* mpLinK3D_Extractor;

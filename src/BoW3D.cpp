@@ -93,7 +93,7 @@ namespace BoW3D
     }
        
 
-    std::vector<LoopResult> BoW3D::retrieve(Frame* pCurrentFrame, int &loopFrameId, Eigen::Matrix3d &loopRelR, Eigen::Vector3d &loopRelt)
+    LoopResult BoW3D::retrieve(Frame* pCurrentFrame, int &loopFrameId, Eigen::Matrix3d &loopRelR, Eigen::Vector3d &loopRelt)
     {        
         int frameId = pCurrentFrame->mnId;
 
@@ -243,8 +243,8 @@ namespace BoW3D
             return {};
         }
 
-        std::vector<LoopResult> ret;
-        ret.reserve(mScoreFrameID.size());
+        LoopResult ret;
+        ret.loop_rel_t << 100., 100., 100.;
         for(auto it = mScoreFrameID.rbegin(); it != mScoreFrameID.rend(); it++)
         {          
             int loopId = (*it).second;
@@ -260,25 +260,26 @@ namespace BoW3D
                                 
             returnValue = loopCorrection(pCurrentFrame, pLoopFrame, vMatchedIndex, loopRelativeR, loopRelativet);
 
-            //The distance between the loop and the current should less than 3m.                  
+            //The distance between the loop and the current should less than 3m.                   
+            if(returnValue != -1 
+                && loopRelativet.norm() > 0 
+                && loopRelativet.norm() < ret.loop_rel_t.norm())
+            {
+                ret.key_frame_id = frameId;
+                ret.loop_frame_id = it->second;
+                ret.loop_rel_R = loopRelativeR;
+                ret.loop_rel_t = loopRelativet;
+                ret.score = returnValue;
+            }
             if(returnValue != -1 && loopRelativet.norm() < 3 && loopRelativet.norm() > 0) 
             {
                 loopFrameId = (*it).second;
                 loopRelR = loopRelativeR;
-                loopRelt = loopRelativet;                         
-            }     
-            if(returnValue != -1) 
-            {
-                ret.emplace_back();
-                auto& res = ret.back();
-                res.key_frame_id = frameId;
-                res.loop_frame_id = (*it).second;
-                res.loop_rel_R = loopRelativeR;
-                res.loop_rel_t = loopRelativet;
-                res.score = returnValue;
-            }
-        } 
-        ret.shrink_to_fit();
+                loopRelt = loopRelativet;              
+                
+                break;
+            }    
+        }
         return ret;
     }
 
