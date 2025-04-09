@@ -70,7 +70,7 @@ Config load_config(const std::string& config_path) {
   ret.lidar_path = node["lidar"].get_value<std::string>();
   ret.pose_path = node["pose"].get_value<std::string>();
   ret.calib_path = node["calib"].get_value<std::string>();
-  ret.output_path = node["output"].get_value<std::string>();
+  ret.output_path = node["result"].get_value<std::string>();
   return ret;
 }
 
@@ -80,11 +80,13 @@ struct Result {
   double score;
   double iou;
   Eigen::Vector3f center;
+  double t_desc;
+  double t_query;
 
   friend std::ostream& operator<<(std::ostream& os, const Result& res) {
     os << res.key_frame_id << "," << res.loop_frame_id << "," << res.score
        << "," << res.iou << "," << res.center.x() << "," << res.center.y()
-       << "," << res.center.z();
+       << "," << res.center.z() << "," << res.t_desc << "," << res.t_query;
     return os;
   }
 };
@@ -154,7 +156,12 @@ int main(int argc, char** argv) {
     }
 
     // do the BoW3D things
+    auto t1 = std::chrono::high_resolution_clock::now();
     auto pCurrentFrame = new BoW3D::Frame(pLinK3dExtractor, cur_cld);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto t_desc = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1)
+                      .count() /
+                  1000.0;
     size_t frameId = pCurrentFrame->mnId;
     if (pCurrentFrame->mnId < 2) {
       pBoW3D->update(pCurrentFrame);
@@ -163,9 +170,14 @@ int main(int argc, char** argv) {
     int loopFrameId = -1;
     Eigen::Matrix3d loopRelR;
     Eigen::Vector3d loopRelt;
+    auto t3 = std::chrono::high_resolution_clock::now();
     auto pairs =
         pBoW3D->retrieve(pCurrentFrame, loopFrameId, loopRelR, loopRelt);
     pBoW3D->update(pCurrentFrame);
+    auto t4 = std::chrono::high_resolution_clock::now();
+    auto t_query = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3)
+                       .count() /
+                   1000.0;
 
     // record the result
     for (const auto& par : pairs) {
@@ -176,6 +188,8 @@ int main(int argc, char** argv) {
       auto cld1 = loader->seq(res.key_frame_id, true);
       auto cld2 = loader->seq(res.loop_frame_id, true);
       res.iou = iou(cld1, cld2);
+      res.t_desc = t_desc;
+      res.t_query = t_query;
       // calculate the center
       Eigen::Vector4f center1;
       pcl::compute3DCentroid(*cld1, center1);
