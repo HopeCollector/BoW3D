@@ -37,11 +37,11 @@ print(f"load {len(params)} configures")
 # 执行算法，计算结果
 import subprocess as sp
 
-CMD = 'bash -c "source /ws/install/setup.bash && rosrun BoW3D expr -c {0} > /dev/null"'
+CMD = 'bash -c "source /ws/install/setup.bash && rosrun BoW3D expr -c {0} > {1}"'
 
-for param in params[:4]:
+for param in params:
     yaml.dump(param, open(param["config"], "w"))
-    cmd = CMD.format(param["config"])
+    cmd = CMD.format(param["config"], f"/ws/output/log/{param["id"]}.log")
     print(f"run {cmd}")
     sp.run(cmd, shell=True)
     os.remove(param["config"])
