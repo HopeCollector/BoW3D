@@ -25,7 +25,8 @@ for seq in dataset["kitti"]:
     param["idx_thd"] = 100
     param["iou_thd"] = 0.7
     param["rps"] = []
-    pickle.dump(param, open(param["analysis"], "wb"))
+    if not os.path.exists(param["analysis"]):
+        pickle.dump(param, open(param["analysis"], "wb"))
     params.append(param)
     cnt += 1
 
@@ -38,7 +39,7 @@ import subprocess as sp
 
 CMD = 'bash -c "source /ws/install/setup.bash && rosrun BoW3D expr -c {0} > /dev/null"'
 
-for param in params[1:4]:
+for param in params[:4]:
     yaml.dump(param, open(param["config"], "w"))
     cmd = CMD.format(param["config"])
     print(f"run {cmd}")
