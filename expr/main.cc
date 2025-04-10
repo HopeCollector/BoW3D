@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
     Eigen::Affine3f transform = Eigen::Affine3f::Identity();
     transform.translation() = center.head<3>();
     pcl::transformPointCloud(*cur_cld, *cur_cld, transform.inverse());
-    fmt::print("{},{},{},", i, tmp->size(), cur_cld->size());
+    fmt::print("{},{},", i, cur_cld->size());
 
     TimeCounter tc_desc;
     auto pCurrentFrame = new BoW3D::Frame(pLinK3dExtractor, cur_cld);
@@ -194,10 +194,18 @@ int main(int argc, char** argv) {
         res.iou = iou(cld1, cld2);
         res.t_desc = t_desc_ms;
         res.t_query = t_query_ms;
+        utils::CloudT ctr_cld;
+        ctr_cld += *cld1;
+        ctr_cld += *cld2;
+        pcl::compute3DCentroid(ctr_cld, center);
+        res.center = center.head<3>();
+        results.push_back(res);
         fmt::print("{},{},{},", i, res.score, res.iou);
       } else {
         fmt::print("-1,-1,-1,");
       }
+    } else {
+      fmt::print("-1,-1,-1,");
     }
 
     if (pCurrentFrame) {
